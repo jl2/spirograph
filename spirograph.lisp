@@ -47,6 +47,8 @@
 ;; Other interesting values:
 ;; a 11.50, b 4.0, h 12.0, steps 2400, dt 0.230
 ;; a 40.00, b 7.00, h 40.00, steps 3200, dt 0.181
+;; a 59.00, b 4.27, h 35.22, steps 3200, dt 1.536
+;; a 30.00, b 2.45, h 23.00, steps 2000, dt 1.300
 
 (define-widget spirograph-drawer (QWidget)
   ((steps :initform 2000)
