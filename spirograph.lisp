@@ -9,6 +9,8 @@
   ())
 
 (define-menu (main-window File)
+  (:item ("Save" (ctrl s))
+         (q+:close main-window))
   (:separator)
   (:item ("Quit" (ctrl alt q))
          (q+:close main-window)))
@@ -41,6 +43,10 @@
   "Y component of the parametric equation for an hypotrochoid curve."
   (+ (* (- a b) (sin tv)) (* h (sin (* tv (/ (- a b) b))))))
 
+
+;; Other interesting values:
+;; a 11.50, b 4.0, h 12.0, steps 2400, dt 0.230
+;; a 40.00, b 7.00, h 40.00, steps 3200, dt 0.181
 
 (define-widget spirograph-drawer (QWidget)
   ((steps :initform 2000)

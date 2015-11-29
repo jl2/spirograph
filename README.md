@@ -4,3 +4,4 @@ It's not very useful, but interactively draws "[hypocycloid](http://mathworld.wo
 
 ![Screenshot](http://www.laroccophoto.com/photos/i-Jhzjr3F/0/XL/i-Jhzjr3F-XL.png)
 
+![Screenshot](http://www.laroccophoto.com/photos/i-L2LhQxH/0/X3/i-L2LhQxH-X3.png)
