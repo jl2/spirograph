@@ -49,6 +49,7 @@
 ;; a 40.00, b 7.00, h 40.00, steps 3200, dt 0.181
 ;; a 59.00, b 4.27, h 35.22, steps 3200, dt 1.536
 ;; a 30.00, b 2.45, h 23.00, steps 2000, dt 1.300
+;; a 30.00, b 5.00, h 39.00, steps 1230, dt=pi/dt, dt >= 30
 
 (define-widget spirograph-drawer (QWidget)
   ((steps :initform 2000)
@@ -56,6 +57,7 @@
    (b-val :initform 2.0)
    (h-val :initform 22.0)
    (dt :initform 0.5)
+   (dt-type :initform :normal)
    (x-function :initform #'epitrochoid-x)
    (y-function :initform #'epitrochoid-y))
   (:documentation "The spirograh-drawer widget draws an epitrochoid or hyptrochoid curve using the currently specified parameters."))
@@ -67,7 +69,10 @@
 
   ;; Set max-radius to an estimate on the max radius of the curve, given the current values of a, b, and h.
   ;; Multiply by 1.1 to give a bit of empty space around the sides.
-  (let ((max-radius (* 1.1 (+ a-val b-val h-val))))
+  (let ((max-radius (* 1.1 (+ a-val b-val h-val)))
+        (rdt (if (eql dt-type :normal)
+                 dt
+                 (/ pi dt))))
     ;; Define some local functions for convenience
     (flet (
            ;; xmapper maps logical x coordinates in the range x-min to x-max to screen coordinates in the range 0 to width
@@ -90,7 +95,7 @@
         ;; Draw the curve
         (loop
            for i below steps
-           for cur-t = 0.0 then (+ cur-t dt)
+           for cur-t = 0.0 then (* i rdt)
            do
              (q+:draw-line painter
                            (truncate (xmapper (spirograph-x a-val b-val h-val cur-t)))
@@ -144,7 +149,7 @@
   (q+:set-decimals dt-spin 3)
   (q+:set-single-step dt-spin 0.001)
   (q+:set-minimum dt-spin 0.001)
-  (q+:set-maximum dt-spin (* 2 pi))
+  (q+:set-maximum dt-spin (* pi 1000))
   (q+:set-value dt-spin (slot-value sviewer 'dt)))
 
 (define-subwidget (spirograph-controls epitrochoid-button) (q+:make-qradiobutton "Epitrochoid")
@@ -159,7 +164,6 @@
   (q+:set-exclusive button-group t)
   (q+:add-button button-group epitrochoid-button)
   (q+:add-button button-group hypotrochoid-button))
-
 
 (define-slot (spirograph-controls type-changed) ()
   "Handle radio button changes that hcange the curve type."
@@ -187,6 +191,47 @@
   ;; Repaint to reflect the changes
   (q+:repaint sviewer))
 
+
+(define-subwidget (spirograph-controls use-dt-button) (q+:make-qradiobutton "dt = dt")
+  "dt = dt"
+  (q+:set-checked use-dt-button t))
+
+(define-subwidget (spirograph-controls pi-over-dt-button) (q+:make-qradiobutton "dt = π/dt (Symetric)")
+  "dt = π/dt")
+
+(define-subwidget (spirograph-controls dt-button-group) (q+:make-qbuttongroup spirograph-controls)
+  "Button group to ensure radio buttons are exclusive."
+  (q+:set-exclusive dt-button-group t)
+  (q+:add-button dt-button-group use-dt-button)
+  (q+:add-button dt-button-group pi-over-dt-button))
+
+(define-subwidget (spirograph-controls animate-button) (q+:make-qpushbutton "Animate" spirograph-controls)
+  (q+:set-checkable animate-button t)
+  (q+:set-checked animate-button nil))
+
+(define-slot (spirograph-controls dt-changed) ()
+  "Handle radio button changes that hcange the curve type."
+  (declare (connected pi-over-dt-button (released)))
+  (declare (connected use-dt-button (released)))
+  (cond 
+    ;; Epitrochoid selected
+    ((q+:is-checked use-dt-button)
+     (setf (slot-value sviewer 'dt-type) :normal))
+
+    ;; Hypotrochoid selected
+    ((q+:is-checked pi-over-dt-button)
+     (setf (slot-value sviewer 'dt-type) :over-pi))
+    
+    ;; One of the above should always be true, but just in case...
+    ;; Print a warning and toggle the  epitrochoid-button
+    (t
+     (format t "Warning: No dt type selected, defaulting to normal.~%")
+     (setf (slot-value sviewer 'dt-type) :normal))
+     (q+:set-checked use-dt-button t))
+
+  ;; Repaint to reflect the changes
+  (q+:repaint sviewer))
+
 ;; It would be nice to handle all spin box changes in one slot, but I don't know 
 ;; how to ignore the value type.
 (define-slot (spirograph-controls steps-changed) ((value int))
@@ -207,6 +252,26 @@
   (setf (slot-value sviewer 'dt) (q+:value dt-spin))
   (q+:repaint sviewer))
 
+(define-subwidget (spirograph-controls timer) (q+:make-qtimer spirograph-controls)
+  (setf (q+:single-shot timer) nil))
+
+(define-slot (spirograph-controls tick) ()
+  (declare (connected timer (timeout)))
+  (setf (slot-value sviewer 'dt) (+ (slot-value sviewer 'dt) 0.0001))
+  (setf (q+:value dt-spin) (slot-value sviewer 'dt))
+  (q+:repaint sviewer)
+  ;; (q+:start timer (round 1000/30))
+  )
+
+(define-slot (spirograph-controls animate-changed) ()
+  "Handle changes to the steps-spin box."
+  (declare (connected animate-button (released)))
+  (if (q+:is-checked animate-button)
+      (q+:start timer (round (/ 1000 60)))
+      (q+:stop timer))
+  (q+:repaint sviewer))
+
+  
 (define-subwidget (spirograph-controls control-layout) (q+:make-qvboxlayout spirograph-controls)
   "Layout all of the control widgets in a vertical box layout."
 
@@ -215,7 +280,8 @@
         (b-inner (q+:make-qhboxlayout))
         (h-inner (q+:make-qhboxlayout))
         (steps-inner (q+:make-qhboxlayout))
-        (dt-inner (q+:make-qhboxlayout)))
+        (dt-inner (q+:make-qhboxlayout))
+        (type-inner (q+:make-qhboxlayout)))
     
     ;; Populate the horizontal layouts and add them to the top level vertical layout
     (q+:add-widget a-inner (q+:make-qlabel "A: " spirograph-controls))
@@ -234,13 +300,17 @@
     (q+:add-widget steps-inner steps-spin)
     (q+:add-layout control-layout steps-inner)
 
+    (q+:add-widget dt-inner animate-button)
     (q+:add-widget dt-inner (q+:make-qlabel "dt: " spirograph-controls))
     (q+:add-widget dt-inner dt-spin)
+    (q+:add-widget dt-inner use-dt-button)
+    (q+:add-widget dt-inner pi-over-dt-button)
     (q+:add-layout control-layout dt-inner)
 
     ;; Add the radio buttons directly to the vertical layout
-    (q+:add-widget control-layout epitrochoid-button)
-    (q+:add-widget control-layout hypotrochoid-button)
+    (q+:add-widget type-inner epitrochoid-button)
+    (q+:add-widget type-inner hypotrochoid-button)
+    (q+:add-layout control-layout type-inner)
 
     ;; Finally add the spirograph viewer directly to the vertical layout
     (q+:add-widget control-layout sviewer)
